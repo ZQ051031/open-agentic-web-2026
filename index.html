@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A browser-local team of agents plans a fictional shoreline cleanup and shows every handoff.">
+  <title>Tide Desk — Shoreline cleanup planner</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="alternate" type="application/json" title="Agent site manifest" href="./agent-manifest.json">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header class="wrapper site-head">
+    <a href="./" class="mark"><span aria-hidden="true">≈</span> Tide Desk</a>
+    <a class="manifest-link" href="./agent-manifest.json">Agent manifest ↗</a>
+  </header>
+  <main class="wrapper">
+    <section class="hero" aria-labelledby="title">
+      <div>
+        <p class="eyebrow">THE SHORELINE PLANNING DESK</p>
+        <h1 id="title">Pick a shore.<br>Show your work.</h1>
+        <p class="lede">Give three agents a cleanup brief. Watch them find a site, verify the constraints, and tell you when there’s no good match.</p>
+      </div>
+      <div class="chart" aria-hidden="true">
+        <svg viewBox="0 0 400 226" fill="none">
+          <path d="M327-35C185-31 213 70 102 58s-91 101-143 92M353-25C211-20 239 81 131 73S33 170-22 174m400-190C231-7 261 96 157 91S56 189 0 199m400-197C256 3 287 117 182 112S83 217 14 221M430 20c-150 1-112 116-218 115s-108 105-175 112m415-200c-148-3-115 117-215 115S127 259 56 274m419-203c-152-8-115 118-213 117s-112 100-177 116" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M75 166 172 129l114-47" stroke="#e8bc72" stroke-dasharray="5 6"/>
+          <circle cx="75" cy="166" r="5" fill="#e8bc72"/><circle cx="172" cy="129" r="6" fill="#e8bc72"/><circle cx="286" cy="82" r="5" fill="#e8bc72"/>
+          <circle cx="172" cy="129" r="14" stroke="#e8bc72" opacity=".7"/>
+        </svg>
+        <span>FIELD CHART / SIMULATION</span>
+      </div>
+    </section>
+    <div class="notice"><span aria-hidden="true"></span> Fictional field data. Not tide, safety or access advice. The planner runs in your browser.</div>
+    <div class="workspace">
+      <section class="panel" aria-labelledby="brief-title">
+        <div class="section-head"><span>01 / INPUT</span><h2 id="brief-title">Choose a brief</h2></div>
+        <form id="brief">
+          <fieldset id="scenarios" disabled><legend class="sr-only">Example cleanup briefs</legend></fieldset>
+          <label class="peer-option"><input id="peer" type="checkbox" disabled> Add a cross-site volunteer briefing</label>
+          <p class="hint">Optional. You approve each external artifact request. The peer gets no crew or site details.</p>
+          <button class="run" id="run" disabled>Run the agents <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+      <section class="panel" aria-labelledby="activity-title">
+        <div class="section-head"><span>02 / EXECUTION</span><h2 id="activity-title">Agent handoffs</h2></div>
+        <ol id="agents" class="agents" aria-label="Agent network"></ol>
+        <div class="log-head"><strong>Live activity</strong><span id="status" role="status">Loading</span></div>
+        <ol id="log" class="log" role="log" aria-label="Live activity"></ol>
+      </section>
+      <section class="panel result-panel" aria-labelledby="result-title">
+        <div class="section-head"><span>03 / DECISION</span><h2 id="result-title">Field plan</h2></div>
+        <div id="result" aria-live="polite"><p class="placeholder">Your plan and the evidence behind it will appear here.</p></div>
+      </section>
+    </div>
+  </main>
+  <footer class="wrapper">
+    <span>Tide Desk · Open Agentic Web Challenge</span>
+    <nav aria-label="Agent artifacts"><a href="./tide_desk.network.json">Network definition</a><a href="./links.json">Peer links</a><a href="./runtime.js">Runtime</a></nav>
+  </footer>
+  <dialog id="consent" aria-labelledby="consent-title">
+    <h2 id="consent-title">Allow external contact?</h2>
+    <p id="consent-detail"></p>
+    <form method="dialog">
+      <button value="deny" autofocus>Decline</button>
+      <button class="run" value="allow">Allow once</button>
+    </form>
+  </dialog>
+</body>
+</html>

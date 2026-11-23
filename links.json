@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "networks": {
+    "tide_desk": {
+      "briefing_peer": "https://raw.githubusercontent.com/ZQ051031/open-agentic-web-2026/main/briefing"
+    },
+    "briefing": {}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "metadata": { "description": "A reusable, fictional volunteer briefing; no user or site data required." },
+  "sly_data_schema": { "type": "object", "properties": {}, "additionalProperties": false },
+  "tools": [
+    {
+      "name": "briefing",
+      "function": {
+        "description": "Return the published general cleanup briefing, without location-specific advice.",
+        "parameters": {
+          "type": "object",
+          "properties": { "inquiry": { "type": "string", "maxLength": 120 } },
+          "required": ["inquiry"],
+          "additionalProperties": false
+        }
+      },
+      "instructions": "Use a buddy system. Mark the meeting point before work starts. Flag sharp or unidentified items for the site lead instead of touching them.",
+      "tools": []
+    }
+  ]
+}

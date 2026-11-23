@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "description": "Plan a fictional volunteer shoreline cleanup against access, tide and group size constraints."
+  },
+  "max_steps": 12,
+  "sly_data_schema": { "type": "object", "properties": {}, "additionalProperties": false },
+  "tools": [
+    {
+      "name": "coordinator",
+      "function": {
+        "description": "Ask the scout for a site and hand its pick to the checker. Optionally ask a peer for a volunteer briefing; report a refusal if no site qualifies.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "scenario": { "type": "string", "enum": ["accessible", "high_tide", "no_match"] },
+            "briefing": { "type": "boolean" }
+          },
+          "required": ["scenario", "briefing"],
+          "additionalProperties": false
+        }
+      },
+      "instructions": "Delegate site selection to scout. Have checker independently review the selected site against every constraint. Include source receipts. Never relax a constraint. When explicitly requested, delegate a generic briefing request to briefing_peer without sending local context.",
+      "tools": ["scout", "checker", "briefing_peer"]
+    },
+    {
+      "name": "scout",
+      "function": {
+        "description": "Read the site's fictional catalog and select the first site meeting crew, access and tide constraints.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "scenario": { "type": "string", "enum": ["accessible", "high_tide", "no_match"] }
+          },
+          "required": ["scenario"],
+          "additionalProperties": false
+        }
+      },
+      "instructions": "Read the read_cleanup_sites site action. Return the first site that meets the requested constraints, or no match.",
+      "tools": []
+    },
+    {
+      "name": "checker",
+      "function": {
+        "description": "Independently verify a proposed site against the original constraints using the catalog.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "scenario": { "type": "string", "enum": ["accessible", "high_tide", "no_match"] },
+            "site": { "type": "string" }
+          },
+          "required": ["scenario", "site"],
+          "additionalProperties": false
+        }
+      },
+      "instructions": "Re-read read_cleanup_sites. Confirm capacity, access and tide constraints; return the individual checks.",
+      "tools": []
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "brand": "Tide Desk",
+  "networks": [
+    {
+      "name": "tide_desk",
+      "front_man": "coordinator",
+      "hocon": "./tide_desk.network.json",
+      "description": "Build a fictional shoreline cleanup plan for a crew, with source receipts and constraint checks.",
+      "sample_queries": ["Step-free crew", "High-tide switch", "No safe match"]
+    },
+    {
+      "name": "briefing",
+      "front_man": "briefing",
+      "hocon": "./briefing.network.json",
+      "description": "Provide a general volunteer briefing for a fictional shoreline cleanup."
+    }
+  ],
+  "llm_router": {
+    "base_url": "./runtime.js",
+    "model": "tide-rules-v1",
+    "protocol": "browser-local-rules",
+    "mock": false
+  },
+  "allowed_peers": ["https://raw.githubusercontent.com"],
+  "peer_policy": {
+    "mode": "closed",
+    "deny_origins": []
+  },
+  "actions": {
+    "version": 1,
+    "module": "./site-actions.js",
+    "agentTools": ["read_cleanup_sites"]
+  }
+}
