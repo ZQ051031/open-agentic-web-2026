@@ -13,13 +13,17 @@ function assert(ok, message) {
 
 function schemaFor(schema) {
   assert(object(schema) && schema.type === "object" && object(schema.properties), "Expected an object input schema.");
+  assert(Object.keys(schema).every(key => ["type", "properties", "required", "additionalProperties", "description"].includes(key)) &&
+    (schema.additionalProperties === undefined || schema.additionalProperties === false), "Unsupported object input schema keyword.");
   assert(schema.required === undefined || (Array.isArray(schema.required) &&
     schema.required.every(name => own(schema.properties, name))), "Invalid required fields.");
   for (const property of Object.values(schema.properties)) {
     assert(object(property) && ["string", "boolean"].includes(property.type), "Unsupported input schema type.");
+    assert(Object.keys(property).every(key => ["type", "enum", "maxLength", "description"].includes(key)),
+      "Unsupported property input schema keyword.");
     assert(property.enum === undefined || (Array.isArray(property.enum) &&
       property.enum.length > 0 && property.enum.every(v => typeof v === property.type)), "Invalid input enum.");
-    assert(property.maxLength === undefined || (Number.isSafeInteger(property.maxLength) &&
+    assert(property.maxLength === undefined || (property.type === "string" && Number.isSafeInteger(property.maxLength) &&
       property.maxLength >= 0), "Invalid maximum input length.");
   }
 }
@@ -41,6 +45,15 @@ function webURL(value, base) {
     (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) &&
     !url.username && !url.password && !url.search && !url.hash, "Expected a public HTTPS URL or loopback development URL.");
   return url;
+}
+
+function mcpDescriptor(descriptor) {
+  assert(object(descriptor) && typeof descriptor.url === "string" && http(descriptor.url) &&
+    Array.isArray(descriptor.tools) && descriptor.tools.length > 0 &&
+    descriptor.tools.every(name => typeof name === "string" && NAME.test(name)),
+  "Invalid or unsupported MCP descriptor.");
+  webURL(descriptor.url);
+  return descriptor;
 }
 
 function entryFor(manifest, name) {
@@ -66,7 +79,7 @@ export function validateNetwork(definition, front, links = {}) {
     assert(!["class", "code", "coded_tool", "bundle"].some(key => own(agent, key)),
       "Executable peer definitions are not supported.");
     assert(nonempty(agent.function?.description) && nonempty(agent.instructions) &&
-      Array.isArray(agent.tools) && agent.tools.every(tool => typeof tool === "string"),
+      Array.isArray(agent.tools),
     `Invalid agent definition: ${agent.name}.`);
     schemaFor(agent.function.parameters);
     agents.set(agent.name, agent);
@@ -83,8 +96,10 @@ export function validateNetwork(definition, front, links = {}) {
     if (visited.has(name)) return;
     active.add(name);
     const targets = agents.get(name).tools;
-    assert(new Set(targets).size === targets.length, `Duplicate tool reference on ${name}.`);
+    assert(new Set(targets.map(target => typeof target === "string" ? target : mcpDescriptor(target).url))
+      .size === targets.length, `Duplicate tool reference on ${name}.`);
     for (const target of targets) {
+      if (typeof target !== "string") continue;
       if (agents.has(target)) visit(target);
       else if (http(target)) webURL(target);
       else assert(own(links, target), `Missing tool reference: ${target}.`);
@@ -104,9 +119,10 @@ const evaluate = (site, brief) => [
 
 export const localRouter = {
   model: "tide-rules-v1",
-  async infer({ agent, args, call, action, peer }) {
+  async infer({ agent, args, call, action, peer, stream }) {
     if (peer) {
       assert(agent.tools.length === 0 && own(args, "inquiry"), "The local router supports read-only briefing peers.");
+      for (const sentence of agent.instructions.match(/[^.!?]+[.!?]?/g) ?? []) stream(sentence.trim());
       return agent.instructions;
     }
     const brief = scenarios[args.scenario];
@@ -186,18 +202,75 @@ export async function createRuntime({
     let steps = 0;
     let remote = 0;
     const emit = (type, message, agent) => onEvent({ type, message, agent });
-    async function contact(url, purpose) {
+    async function authorize(url, purpose, details) {
       signal.throwIfAborted();
       assert(++remote <= LIMIT.remote, "Remote request budget exceeded.");
       if (url.origin !== baseURL.origin) {
         assert(manifest.allowed_peers.includes(url.origin) && !manifest.peer_policy.deny_origins.includes(url.origin),
           `Origin denied: ${url.origin}.`);
         emit("consent", `Awaiting approval: ${purpose} from ${url.origin}`);
-        assert(await guarded(approve({ origin: url.origin, purpose, signal }), signal),
+        assert(await guarded(approve({ origin: url.origin, purpose, details, signal }), signal),
           `Contact declined: ${url.origin}.`);
         emit("consent", `Approved: ${purpose}`);
       }
+    }
+    async function contact(url, purpose) {
+      await authorize(url, purpose);
       return readJSON(url, signal);
+    }
+    async function mcp(agent, endpoint, name, args) {
+      const descriptor = agent.tools.find(tool => object(tool) && tool.url === endpoint && tool.tools.includes(name));
+      assert(descriptor, "Undeclared MCP capability.");
+      assert(++steps <= Math.min(localDefinition.max_steps ?? LIMIT.steps, LIMIT.steps), "Tool budget exceeded.");
+      const url = webURL(endpoint);
+      assert(Array.isArray(manifest.mcp_read_tools?.[url.href]) && manifest.mcp_read_tools[url.href].includes(name),
+        "MCP tool is not allowlisted as read-only by the caller.");
+      let session;
+      let protocol = "2025-06-18";
+      let requestId = 0;
+      async function rpc(method, params, notice = false, details) {
+        await authorize(url, `use MCP ${method}`, details);
+        const id = ++requestId;
+        const headers = {
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream"
+        };
+        if (method !== "initialize") headers["MCP-Protocol-Version"] = protocol;
+        if (session) headers["Mcp-Session-Id"] = session;
+        const body = JSON.stringify({ jsonrpc: "2.0", ...(notice ? {} : { id }), method, ...(params ? { params } : {}) });
+        const response = await guarded(fetcher(url, {
+          method: "POST", body, headers, signal, credentials: "omit", redirect: "error"
+        }), signal);
+        assert(response.ok, `MCP request failed (HTTP ${response.status}).`);
+        session = response.headers.get("Mcp-Session-Id") ?? session;
+        if (notice) return;
+        const text = await guarded(response.text(), signal);
+        assert(text.length <= 131_072, "MCP response exceeds the size limit.");
+        const messages = response.headers.get("Content-Type")?.includes("text/event-stream")
+          ? text.replaceAll("\r\n", "\n").split("\n\n").map(event =>
+            event.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trim()).join("\n"))
+            .filter(Boolean).map(data => JSON.parse(data))
+          : [JSON.parse(text)];
+        const reply = messages.find(message => message?.jsonrpc === "2.0" && message.id === id);
+        assert(reply && !reply.error && object(reply.result), `Invalid or failed MCP reply: ${method}.`);
+        return reply.result;
+      }
+      const info = await rpc("initialize", {
+        protocolVersion: protocol, capabilities: {}, clientInfo: { name: "Tide Desk", version: "1.0.0" }
+      });
+      assert(["2025-03-26", "2025-06-18", "2025-11-25"].includes(info.protocolVersion) &&
+        object(info.capabilities?.tools), "Unsupported MCP protocol or server capabilities.");
+      protocol = info.protocolVersion;
+      await rpc("notifications/initialized", undefined, true);
+      const catalog = await rpc("tools/list", {});
+      assert(Array.isArray(catalog.tools), "Invalid MCP tool list.");
+      const tool = catalog.tools.find(tool => tool?.name === name);
+      assert(tool?.annotations?.readOnlyHint === true, "MCP tool unavailable as a read-only capability.");
+      schemaFor(tool.inputSchema);
+      checkArgs(tool.inputSchema, args);
+      const result = await rpc("tools/call", { name, arguments: args }, false, JSON.stringify({ name, arguments: args }));
+      assert(!result.isError, "MCP tool reported a failure.");
+      return result;
     }
     async function invoke(network, name, input, depth) {
       signal.throwIfAborted();
@@ -209,6 +282,12 @@ export async function createRuntime({
       await guarded(pace(), signal);
       const result = await guarded(router.infer({
         agent, args: input, peer: network.peer,
+        stream: chunk => {
+          signal.throwIfAborted();
+          assert(typeof chunk === "string", "Invalid inference chunk.");
+          emit("stream", chunk, name);
+        },
+        mcp: (endpoint, tool, toolArgs) => mcp(agent, endpoint, tool, toolArgs),
         action: async (actionName, actionArgs) => {
           signal.throwIfAborted();
           const action = own(siteActions, actionName) && siteActions[actionName];

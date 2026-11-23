@@ -39,9 +39,10 @@ function onEvent({ type, message, agent }) {
   if (type === "return" && card) card.dataset.state = "done";
 }
 
-function approve({ origin, purpose, signal }) {
+function approve({ origin, purpose, details, signal }) {
   const dialog = get("consent");
-  get("consent-detail").textContent = `May Tide Desk ${purpose}? Destination: ${origin}. No cookies or crew details are sent.`;
+  get("consent-detail").textContent = `May Tide Desk ${purpose}? Destination: ${origin}. ${details
+    ? `Arguments: ${details}` : "No cookies or crew details are sent."}`;
   dialog.returnValue = "deny";
   return new Promise(resolve => {
     function abort() { dialog.close("deny"); }

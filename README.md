@@ -20,7 +20,7 @@ Open <http://localhost:8080/> in a current browser. Use HTTP, not a `file://` UR
 npm test
 ```
 
-Tests use the Node 22 built-in test runner. They check the published fields and schema subset, deterministic outputs, real tool dispatch and delegation, exact remote resolution, consent and closed peer policy, and visible failure paths.
+Tests use the Node 22 built-in test runner. They check the published fields and schema subset, deterministic outputs, tool dispatch and delegation, exact remote resolution, consent and closed peer policy, a fixture MCP exchange, and visible failure paths.
 
 ## Open Agentic Web profile mapping
 
@@ -33,7 +33,7 @@ The [official rules](https://cognizant-agenticweb.devpost.com/rules) refer to th
 | §3.2 and §5 — composition and boundaries | The opt-in briefing resolves the exact `briefing` entry from a second origin hosting the same published repo. The browser asks before each artifact fetch. It does not send credentials, crew details, or private context. The caller runs the peer locally and ignores its router configuration. The runtime rejects redirects, executable peer definitions, disallowed origins, invalid graphs, cycles and over-budget runs. |
 | §4 — default inference | `tide-rules-v1` is a deterministic, browser-local inference adapter, not an LLM or a simulated remote call. The adapter is separate from graph orchestration. There is no BYOK. |
 
-This is a scoped runtime: it implements the site-action path and the published read-only briefing, not full general-purpose nsDeploy compatibility, arbitrary LLM inference or MCP transport. The profile's generic MCP and model-token streaming behavior are not demonstrated here. The briefing's plain-text instructions are rendered as text, never executed as code or HTML.
+The demo uses the site-action path and the published read-only briefing. The runtime also supports an allowlisted, read-only MCP subset over Streamable HTTP, covered by a fixture rather than a live MCP service. Inference adapters can emit text chunks; the demo streams the rule-based briefing by sentence rather than inventing LLM tokens. This is not a general-purpose nsDeploy or arbitrary LLM runtime. The briefing text is rendered as text, never executed as code or HTML.
 
 ### Programmatic caller
 

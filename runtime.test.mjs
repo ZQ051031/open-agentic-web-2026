@@ -82,6 +82,7 @@ test("cross-origin peer is discovered exactly, runs in the caller, and receives 
   assert.match(plan.briefing, /buddy system/);
   assert.deepEqual(peerInput.args, { inquiry: "Give the general volunteer briefing." });
   assert.equal(peerInput.sly_data, undefined);
+  assert.equal(events.filter(e => e.type === "stream").length, 3);
   assert.deepEqual(approvals.map(a => [a.origin, a.purpose]), [
     [peerOrigin, "read the peer manifest"], [peerOrigin, "read the peer network definition"]
   ]);
@@ -139,4 +140,56 @@ test("bounds steps and concurrent runs; rejects private fields as ordinary argum
   const active = normal.runtime.run(args("accessible"));
   await assert.rejects(normal.runtime.run(args("accessible")), /already active/);
   await active;
+});
+
+test("MCP discovery and an allowlisted read use typed arguments and per-request approval", async () => {
+  const endpoint = "https://catalog.example/mcp";
+  const approvals = [];
+  const calls = [];
+  const runtime = await createRuntime({
+    base,
+    router: {
+      ...localRouter,
+      infer: context => context.agent.name === "coordinator"
+        ? context.mcp(endpoint, "read_weather", { station: "sample" })
+        : localRouter.infer(context)
+    },
+    approve: async request => { approvals.push(request); return true; },
+    fetcher: async (url, options) => {
+      if (url.href === endpoint) {
+        assert.equal(approvals.length, calls.length + 1);
+        assert.equal(options.credentials, "omit");
+        const request = JSON.parse(options.body);
+        calls.push(request.method);
+        const json = result => Response.json({ jsonrpc: "2.0", id: request.id, result });
+        switch (request.method) {
+          case "initialize": return json({ protocolVersion: "2025-06-18", capabilities: { tools: {} } });
+          case "notifications/initialized": return new Response(null, { status: 202 });
+          case "tools/list": return json({
+            tools: [{
+              name: "read_weather", annotations: { readOnlyHint: true },
+              inputSchema: { type: "object", properties: { station: { type: "string" } }, required: ["station"] }
+            }]
+          });
+          case "tools/call": {
+            assert.deepEqual(request.params, { name: "read_weather", arguments: { station: "sample" } });
+            const message = { jsonrpc: "2.0", id: request.id, result: { content: [{ type: "text", text: "Sample report" }] } };
+            return new Response(`event: message\ndata: ${JSON.stringify(message)}\n\n`, { headers: { "Content-Type": "text/event-stream" } });
+          }
+          default: assert.fail("Unexpected MCP method");
+        }
+      }
+      const document = await json(filename(url));
+      if (filename(url) === "agent-manifest.json") {
+        document.allowed_peers.push(new URL(endpoint).origin);
+        document.mcp_read_tools = { [endpoint]: ["read_weather"] };
+      }
+      if (filename(url) === "tide_desk.network.json") document.tools[0].tools.push({ url: endpoint, tools: ["read_weather"] });
+      return Response.json(document);
+    }
+  });
+  const result = await runtime.run(args("accessible"));
+  assert.equal(result.content[0].text, "Sample report");
+  assert.deepEqual(calls, ["initialize", "notifications/initialized", "tools/list", "tools/call"]);
+  assert.equal(approvals.at(-1).details, '{"name":"read_weather","arguments":{"station":"sample"}}');
 });
